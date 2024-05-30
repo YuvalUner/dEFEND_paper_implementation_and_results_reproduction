@@ -71,12 +71,6 @@ class Defend(nn.Module):
 
         # Fully connected layer, to predict if an article is fake or real
         self.fc = nn.Linear(2 * encoding_dim, 2)
-        self.optimizer = torch.optim.RMSprop(
-            itertools.chain(self.article_embedding.parameters(), self.comment_embedding.parameters(),
-                            self.word_encoder.parameters(), self.sentence_encoder.parameters(),
-                            self.comment_encoder.parameters(), self.co_attention.parameters(), self.fc.parameters()),
-            lr=opt.lr, alpha=opt.RMSprop_ro_param, eps=opt.RMSprop_eps, weight_decay=opt.RMSprop_decay
-        )
 
         # If GPU is available, move all models to GPU. Otherwise, they will stay on the CPU
         self.word_encoder = self.move_to_device(self.word_encoder)
@@ -84,5 +78,12 @@ class Defend(nn.Module):
         self.comment_encoder = self.move_to_device(self.comment_encoder)
         self.co_attention = self.move_to_device(self.co_attention)
         self.fc = self.move_to_device(self.fc)
+
+        self.optimizer = torch.optim.RMSprop(
+            itertools.chain(self.article_embedding.parameters(), self.comment_embedding.parameters(),
+                            self.word_encoder.parameters(), self.sentence_encoder.parameters(),
+                            self.comment_encoder.parameters(), self.co_attention.parameters(), self.fc.parameters()),
+            lr=opt.lr, alpha=opt.RMSprop_ro_param, eps=opt.RMSprop_eps, weight_decay=opt.RMSprop_decay
+        )
 
 
