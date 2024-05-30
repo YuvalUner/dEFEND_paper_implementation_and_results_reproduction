@@ -22,6 +22,7 @@ class Defend(nn.Module):
         self.embedding_mapping = {}
 
         if opt.embedding_path is not None:
+            # Load the GloVe embeddings, if provided
             with open(opt.embedding_path, 'r', encoding='utf-8') as f:
                 print('Loading GloVe embeddings')
                 for line in tqdm(f):
@@ -36,9 +37,15 @@ class Defend(nn.Module):
             print('Creating embedding matrix')
             for i, (word, coefs) in tqdm(enumerate(self.embedding_index.items())):
                 embedding_matrix[i] = coefs
-            self.embedding = nn.Embedding.from_pretrained(embedding_matrix, freeze=False)
+            # Different embedding layers for articles and comments, as defined in the original code.
+            # Likely due to the fact that articles and comments have different probability distributions,
+            # and thus different embeddings are needed, despite the fact that the same GloVe embeddings are used as a basis
+            self.article_embedding = nn.Embedding.from_pretrained(embedding_matrix, freeze=False)
+            self.comment_embedding = nn.Embedding.from_pretrained(embedding_matrix, freeze=False)
+        # If not using GloVe embeddings, create random embeddings and train them from scratch during training
         else:
-            self.embedding = nn.Embedding(len(opt.word_index) + 1, opt.embedding_dim)
+            self.article_embedding = nn.Embedding(opt.vocab_size + 1, opt.embedding_dim)
+            self.comment_embedding = nn.Embedding(opt.vocab_size + 1, opt.embedding_dim)
 
 
 
@@ -65,7 +72,8 @@ class Defend(nn.Module):
         # Fully connected layer, to predict if an article is fake or real
         self.fc = nn.Linear(2 * encoding_dim, 2)
         self.optimizer = torch.optim.RMSprop(
-            itertools.chain(self.embedding.parameters(), self.word_encoder.parameters(), self.sentence_encoder.parameters(),
+            itertools.chain(self.article_embedding.parameters(), self.comment_embedding.parameters(),
+                            self.word_encoder.parameters(), self.sentence_encoder.parameters(),
                             self.comment_encoder.parameters(), self.co_attention.parameters(), self.fc.parameters()),
             lr=opt.lr, alpha=opt.RMSprop_ro_param, eps=opt.RMSprop_eps, weight_decay=opt.RMSprop_decay
         )
