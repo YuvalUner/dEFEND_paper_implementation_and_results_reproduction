@@ -1,8 +1,7 @@
 import torch
 from torch import nn
-from .baselayer import BaseLayer
 
-class AttentionLayer(nn.Module, BaseLayer):
+class AttentionLayer(nn.Module):
 
     def __init__(self, opt, **kwargs):
         super(AttentionLayer, self).__init__()
@@ -31,11 +30,3 @@ class AttentionLayer(nn.Module, BaseLayer):
         output = torch.sum(weighted_input, dim=1)
 
         return output
-
-    @staticmethod
-    def create(opt):
-        attention_layer = AttentionLayer(opt)
-        if len(opt.gpu_ids) > 0:
-            attention_layer.to(opt.gpu_ids[0])
-            attention_layer = torch.nn.DataParallel(attention_layer, opt.gpu_ids)  # multi-GPUs
-        return attention_layer

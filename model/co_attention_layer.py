@@ -1,8 +1,7 @@
 import torch
 from torch import nn
-from .baselayer import BaseLayer
 
-class CoAttentionLayer(nn.Module, BaseLayer):
+class CoAttentionLayer(nn.Module):
 
     def __init__(self, opt, **kwargs):
         super(CoAttentionLayer, self).__init__()
@@ -52,12 +51,4 @@ class CoAttentionLayer(nn.Module, BaseLayer):
         weighted_comment = torch.sum(weighted_comment, dim=1)
 
         return torch.concat((weighted_sentence, weighted_comment), dim=1)
-
-    @staticmethod
-    def create(opt):
-        co_attention_layer = CoAttentionLayer(opt)
-        if len(opt.gpu_ids) > 0:
-            co_attention_layer.to(opt.gpu_ids[0])
-            co_attention_layer = torch.nn.DataParallel(co_attention_layer, opt.gpu_ids)  # multi-GPUs
-        return co_attention_layer
 
