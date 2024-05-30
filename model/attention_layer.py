@@ -1,18 +1,19 @@
 import torch
 from torch import nn
+from .baselayer import BaseLayer
 
-class AttentionLayer(nn.Module):
+class AttentionLayer(nn.Module, BaseLayer):
 
-    def __init__(self, **kwargs):
+    def __init__(self, opt, **kwargs):
         super(AttentionLayer, self).__init__()
-        self.attention_dim = kwargs['k']
-        self.build(kwargs['input_shape'])
+        self.attention_dim = opt.k
+        self.latent_dim = 2 * opt.d if opt.bidirectional else opt.d
+        self.build()
 
-    def build(self, input_shape):
-        self.W = nn.Parameter((torch.randn(input_shape[-1], self.attention_dim)))
+    def build(self):
+        self.W = nn.Parameter(torch.randn(self.latent_dim, self.attention_dim))
         self.b = nn.Parameter(torch.randn(self.attention_dim))
-        self.u = nn.Parameter((torch.randn(self.attention_dim, 1)))
-        self.trainable_variables = [self.W, self.b, self.u]
+        self.u = nn.Parameter(torch.randn(self.attention_dim, 1))
 
     def compute_mask(self, inputs, mask=None):
         return mask
@@ -30,3 +31,11 @@ class AttentionLayer(nn.Module):
         output = torch.sum(weighted_input, dim=1)
 
         return output
+
+    @staticmethod
+    def create(opt):
+        attention_layer = AttentionLayer(opt)
+        if len(opt.gpu_ids) > 0:
+            attention_layer.to(opt.gpu_ids[0])
+            attention_layer = torch.nn.DataParallel(attention_layer, opt.gpu_ids)  # multi-GPUs
+        return attention_layer
