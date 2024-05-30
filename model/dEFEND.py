@@ -73,6 +73,8 @@ class Defend(nn.Module):
         self.fc = nn.Linear(2 * encoding_dim, 2)
 
         # If GPU is available, move all models to GPU. Otherwise, they will stay on the CPU
+        self.article_embedding = self.move_to_device(self.article_embedding)
+        self.comment_embedding = self.move_to_device(self.comment_embedding)
         self.word_encoder = self.move_to_device(self.word_encoder)
         self.sentence_encoder = self.move_to_device(self.sentence_encoder)
         self.comment_encoder = self.move_to_device(self.comment_encoder)
