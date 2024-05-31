@@ -47,8 +47,8 @@ class CoAttentionLayer(nn.Module):
         weighted_sentence = sentence_rep_transpose * As
         weighted_comment = comment_rep_transpose * Ac
 
-        weighted_sentence = torch.sum(weighted_sentence, dim=1)
-        weighted_comment = torch.sum(weighted_comment, dim=1)
+        weighted_sentence = torch.sum(weighted_sentence, dim=-1)
+        weighted_comment = torch.sum(weighted_comment, dim=-1)
 
         return torch.concat((weighted_sentence, weighted_comment), dim=1)
 

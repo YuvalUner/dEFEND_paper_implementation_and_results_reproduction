@@ -126,10 +126,7 @@ class Defend(nn.Module):
                     sentence = torch.cat((sentence, torch.zeros(self.opt.max_sentence_len - len(sentence), dtype=torch.int32)))
                 encoded_texts[i][j] = sentence
 
-        dataset = torch.utils.data.TensorDataset(encoded_texts)
-        dataloader = torch.utils.data.DataLoader(dataset, batch_size=self.opt.batch_size,
-                                                 shuffle=False, num_workers=self.opt.num_workers)
-        return dataloader
+        return encoded_texts
 
     def to_embedding_indexes_comments(self, comments):
         """
@@ -157,10 +154,42 @@ class Defend(nn.Module):
                 encoded_texts[i][j] = indexed_comment
 
 
-        dataset = torch.utils.data.TensorDataset(encoded_texts)
-        dataloader = torch.utils.data.DataLoader(dataset, batch_size=self.opt.batch_size,
-                                                 shuffle=False, num_workers=self.opt.num_workers)
-        return dataloader
+        return encoded_texts
 
 
+    def forward(self, comments, articles):
+        """
+        Forward pass of the model.
+        :param comments: The comments
+        :param articles: The articles
+        :return:
+        """
+        # Convert input indexes to embeddings
+        articles = self.article_embedding(articles)
+        comments = self.comment_embedding(comments)
 
+        # Encode the articles. The output is a tensor of shape (batch_size, max_sentence_count, 2 * d)
+        article_sentence_encodings = torch.zeros((articles.shape[0], self.opt.max_sentence_count,
+                                                  2 * self.opt.d if self.opt.bidirectional else self.opt.d))
+        for i in range(articles.shape[0]):
+            article = articles[i]
+            article_word_embedding = self.word_encoder(article)
+            article_sentence_embedding, _ = self.sentence_encoder(article_word_embedding)
+            article_sentence_encodings[i] = article_sentence_embedding
+
+        article_comments_encodings = torch.zeros((comments.shape[0], self.opt.max_comment_count,
+                                                  2 * self.opt.d if self.opt.bidirectional else self.opt.d))
+        for i in range(comments.shape[0]):
+            comment = comments[i]
+            comment_word_embedding = self.comment_encoder(comment)
+            article_comments_encodings[i] = comment_word_embedding
+
+
+        # Compute the co-attention output
+        co_attention_output = self.co_attention((article_sentence_encodings, article_comments_encodings))
+
+        # Feed the co-attention to the fully connected layer
+        output = self.fc(co_attention_output)
+        output = torch.softmax(output, dim=-1)
+
+        return output

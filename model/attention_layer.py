@@ -18,6 +18,8 @@ class AttentionLayer(nn.Module):
         return mask
 
     def forward(self, x, mask=None):
+        if isinstance(x, tuple):
+            x = x[0]
         u_it = torch.tanh(torch.matmul(x, self.W) + self.b)
         a_it = torch.matmul(u_it, self.u)
         a_it = torch.squeeze(a_it, -1)
