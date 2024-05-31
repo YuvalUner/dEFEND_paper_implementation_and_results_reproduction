@@ -12,7 +12,10 @@ class Tokenizer:
 
 
     def tokenize(self, text):
-        return [token.text for token in self.tokenizer(text)]
+        if isinstance(text, str):
+            return [token.text for token in self.tokenizer(text)]
+        elif isinstance(text, list):
+            return [self.tokenize(t) for t in text]
 
     def __call__(self, *args, **kwargs):
         return self.tokenize(*args, **kwargs)

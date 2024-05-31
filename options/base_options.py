@@ -13,7 +13,7 @@ class BaseOptions:
         parser.add_argument('--num_workers', type=int, default=4, help='number of data loading workers')
         parser.add_argument('--max_sentence_len', type=int, default=120, help='maximum sentence length. Sentences will be padded to this length if shorter')
         parser.add_argument('--max_sentence_count', type=int, default=50, help='maximum sentence count. More sentences will be ignored')
-        parser.add_argument('--max_comment_count', type=int, default=50, help='maximum comment count. More comments will be ignored')
+        parser.add_argument('--max_comment_count', type=int, default=50, help='maximum comment count per article. More comments will be ignored')
         parser.add_argument('--max_comment_len', type=int, default=120, help='maximum comment length. Comments will be padded to this length if shorter')
         parser.add_argument('--embedding_path', type=str, default=None, help='path to pretrained embeddings. If None, embeddings will be trained from scratch')
         parser.add_argument('--embedding_dim', type=int, default=100, help='dimension of word embeddings')

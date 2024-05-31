@@ -1,5 +1,5 @@
 from torch import nn
-from torch.nn.utils.rnn import pad_sequence
+from torch.nn.utils.rnn import pad_packed_sequence
 import torch
 import torch.utils.data
 from .attention_layer import AttentionLayer
@@ -22,8 +22,8 @@ class Defend(nn.Module):
         super(Defend, self).__init__()
         self.opt = opt
         encoding_dim = 2 * opt.d if opt.bidirectional else opt.d
-        self.embedding_index = {}
-        self.embedding_mapping = {}
+        self.embedding_index = {"padding": torch.zeros(opt.embedding_dim)}
+        self.embedding_mapping = {"padding": 0}
         self.sentencizer = Sentencizer()
         self.tokenizer = Tokenizer()
 
@@ -97,31 +97,70 @@ class Defend(nn.Module):
 
 
     def to_embedding_indexes_articles(self, articles):
-        # Convert the text to indexes
-        indexes = []
-        final_index = len(self.embedding_mapping)
+        """
+        Converts the articles to indexes.
+        The main differences between this function and the matching comment function are the usage of
+        the sentencizer to split the article into sentence, and the use of the opt.max_sentence_len and opt.max_sentence_count.
+        :param articles:
+        :return:
+        """
+        # Create a tensor to store the encoded articles
+        encoded_texts = torch.zeros((len(articles), self.opt.max_sentence_count, self.opt.max_sentence_len), dtype=torch.int32)
         print("Converting articles to indexes")
-        for article in tqdm(articles):
-            sentences = self.sentencizer(article)
-            article_indexes = []
-            for sentence in sentences:
-                sentence = sentence.lower()
-                article_indexes += [torch.tensor([self.embedding_mapping.get(word, final_index) for word in self.tokenizer(sentence)])]
-            article_indexes = pad_sequence(article_indexes, batch_first=True, padding_value=final_index)
-            indexes.append(article_indexes)
+        for i, article in tqdm(enumerate(articles)):
+            # Lowercase the article, split it into sentences, tokenize the sentences, and convert the tokens to indexes
+            article = article.lower()
+            sentenceized_article = self.sentencizer(article)
+            tokenized_sentences = self.tokenizer(sentenceized_article)
+            indexed_sentences = [torch.tensor([self.embedding_mapping.get(word, 0) for word in sentence]) for sentence in tokenized_sentences]
 
-        # Pad the indexes to the same length,
-        max_len = max(max(tensor.size(0) for tensor in article) for article in indexes)
-        padded_indexes = []
-        for article in indexes:
-            padded_article = [pad_sequence([tensor], batch_first=True, padding_value=final_index).view(-1)[:max_len]
-                              for tensor in article]
-            padded_indexes.append(padded_article)
+            # Pad the article to the maximum sentence count
+            if len(indexed_sentences) < self.opt.max_sentence_count:
+                indexed_sentences += [torch.zeros(self.opt.max_sentence_len, dtype=torch.int32)] * (self.opt.max_sentence_count - len(indexed_sentences))
+            else:
+                indexed_sentences = indexed_sentences[:self.opt.max_sentence_count]
 
-        # Transform into a torch dataset
-        indexes_tensor = torch.stack([torch.stack(article) for article in padded_indexes])
-        dataset = torch.utils.data.TensorDataset(indexes_tensor)
-        dataloader = torch.utils.data.DataLoader(dataset, batch_size=self.opt.batch_size, shuffle=False,
-                                                 num_workers=self.opt.num_workers)
+            # Convert the list of sentences to a tensor, and pad each sentence to the maximum sentence length
+            for j, sentence in enumerate(indexed_sentences):
+                if len(sentence) < self.opt.max_sentence_len:
+                    sentence = torch.cat((sentence, torch.zeros(self.opt.max_sentence_len - len(sentence), dtype=torch.int32)))
+                encoded_texts[i][j] = sentence
+
+        dataset = torch.utils.data.TensorDataset(encoded_texts)
+        dataloader = torch.utils.data.DataLoader(dataset, batch_size=self.opt.batch_size,
+                                                 shuffle=False, num_workers=self.opt.num_workers)
         return dataloader
+
+    def to_embedding_indexes_comments(self, comments):
+        """
+        Converts the comments to indexes.
+        The main differences between this function and the matching article function are the usage of
+        the opt.max_comment_len and the fact that the comments are not split into sentences.
+        :param comments:
+        :return:
+        """
+        # Create a tensor to store the encoded comments
+        encoded_texts = torch.zeros((len(comments), self.opt.max_comment_count, self.opt.max_comment_len), dtype=torch.int32)
+        print("Converting comments to indexes")
+        for i, comment_collection in tqdm(enumerate(comments)):
+            for j, comment in enumerate(comment_collection):
+                if j >= self.opt.max_comment_count:
+                    break
+                # Lowercase the comment, tokenize it, and convert the tokens to indexes
+                comment = comment.lower()
+                tokenized_comment = self.tokenizer(comment)
+                indexed_comment = torch.tensor([self.embedding_mapping.get(word, 0) for word in tokenized_comment])
+
+                # Pad the comment to the maximum comment length
+                if len(indexed_comment) < self.opt.max_comment_len:
+                    indexed_comment = torch.cat((indexed_comment, torch.zeros(self.opt.max_comment_len - len(indexed_comment), dtype=torch.int32)))
+                encoded_texts[i][j] = indexed_comment
+
+
+        dataset = torch.utils.data.TensorDataset(encoded_texts)
+        dataloader = torch.utils.data.DataLoader(dataset, batch_size=self.opt.batch_size,
+                                                 shuffle=False, num_workers=self.opt.num_workers)
+        return dataloader
+
+
 
