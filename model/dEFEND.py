@@ -1,10 +1,14 @@
 from torch import nn
+from torch.nn.utils.rnn import pad_sequence
 import torch
+import torch.utils.data
 from .attention_layer import AttentionLayer
 from .co_attention_layer import CoAttentionLayer
 from tqdm import tqdm
 import numpy as np
 import itertools
+from .sentencizer import Sentencizer
+from .tokenizer import Tokenizer
 
 class Defend(nn.Module):
 
@@ -20,6 +24,8 @@ class Defend(nn.Module):
         encoding_dim = 2 * opt.d if opt.bidirectional else opt.d
         self.embedding_index = {}
         self.embedding_mapping = {}
+        self.sentencizer = Sentencizer()
+        self.tokenizer = Tokenizer()
 
         if opt.embedding_path is not None:
             # Load the GloVe embeddings, if provided
@@ -88,4 +94,34 @@ class Defend(nn.Module):
             lr=opt.lr, alpha=opt.RMSprop_ro_param, eps=opt.RMSprop_eps, weight_decay=opt.RMSprop_decay
         )
 
+
+
+    def to_embedding_indexes_articles(self, articles):
+        # Convert the text to indexes
+        indexes = []
+        final_index = len(self.embedding_mapping)
+        print("Converting articles to indexes")
+        for article in tqdm(articles):
+            sentences = self.sentencizer(article)
+            article_indexes = []
+            for sentence in sentences:
+                sentence = sentence.lower()
+                article_indexes += [torch.tensor([self.embedding_mapping.get(word, final_index) for word in self.tokenizer(sentence)])]
+            article_indexes = pad_sequence(article_indexes, batch_first=True, padding_value=final_index)
+            indexes.append(article_indexes)
+
+        # Pad the indexes to the same length,
+        max_len = max(max(tensor.size(0) for tensor in article) for article in indexes)
+        padded_indexes = []
+        for article in indexes:
+            padded_article = [pad_sequence([tensor], batch_first=True, padding_value=final_index).view(-1)[:max_len]
+                              for tensor in article]
+            padded_indexes.append(padded_article)
+
+        # Transform into a torch dataset
+        indexes_tensor = torch.stack([torch.stack(article) for article in padded_indexes])
+        dataset = torch.utils.data.TensorDataset(indexes_tensor)
+        dataloader = torch.utils.data.DataLoader(dataset, batch_size=self.opt.batch_size, shuffle=False,
+                                                 num_workers=self.opt.num_workers)
+        return dataloader
 
