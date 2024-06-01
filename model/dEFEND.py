@@ -241,6 +241,8 @@ class Defend(nn.Module):
         :param y_true: The true labels
         :return:
         """
+        y_pred = y_pred.cpu()
+        y_true = y_true.cpu()
         loss = self.loss(y_pred, y_true)
         self.optimizer.zero_grad()
         loss.backward()
