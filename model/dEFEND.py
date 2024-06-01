@@ -346,6 +346,8 @@ class Defend(nn.Module):
             print(f"Epoch: {epoch + 1} - Validation metrics: {metrics}")
             metrics_vals.append(metrics)
 
+        return train_loss_vals, metrics_vals
+
 
 
 
