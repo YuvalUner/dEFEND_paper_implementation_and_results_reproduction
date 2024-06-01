@@ -1,14 +1,11 @@
 from options import TrainOptions
-from model.co_attention_layer import CoAttentionLayer
-import torch
-from torch.utils.data import DataLoader, TensorDataset
 from model import Defend
 
 if __name__ == '__main__':
-    opt = TrainOptions().parse()   # get training options
+
+    opt = TrainOptions().parse() # get training options
     defend = Defend(opt)
     text_example = ['This is a test. It is a great test. The best test the world has ever seen.', 'This is another test']
-    sentences_dataset = defend.to_embedding_indexes_articles(text_example)
     comments_example = [
         [
             'This is a comment. It is a great comment. The best comment the world has ever seen.',
@@ -19,13 +16,11 @@ if __name__ == '__main__':
             'This is another comment'
         ]
     ]
-    comments_dataset = defend.to_embedding_indexes_comments(comments_example)
+    y_train = [[1, 0], [0, 1]]
+    articles_x_val = ['Val article 1', 'Val article 2']
+    comments_x_val = [['Val comment 1', 'Val comment 2'], ['Val comment 3', 'Val comment 4']]
+    y_val = [[1, 0], [0, 1]]
 
-    dataset = TensorDataset(sentences_dataset, comments_dataset)
-    dataloader = DataLoader(dataset, batch_size=opt.batch_size, shuffle=True, num_workers=opt.num_workers)
+    defend.fit(text_example, comments_example, y_train, articles_x_val, comments_x_val, y_val, opt.max_epochs)
 
-    for batch in dataloader:
-        sentences, comments = batch
-        output = defend.forward(comments, sentences)
-        print(output)
-        break
+

@@ -25,7 +25,7 @@ class CoAttentionLayer(nn.Module):
     def compute_mask(self, inputs, mask=None):
         return mask
 
-    def forward(self, x):
+    def forward(self, x, return_attention=False):
         comment_rep = x[0]
         sentence_rep = x[1]
 
@@ -49,6 +49,9 @@ class CoAttentionLayer(nn.Module):
 
         weighted_sentence = torch.sum(weighted_sentence, dim=-1)
         weighted_comment = torch.sum(weighted_comment, dim=-1)
+
+        if return_attention:
+            return torch.concat((weighted_sentence, weighted_comment), dim=1), As, Ac
 
         return torch.concat((weighted_sentence, weighted_comment), dim=1)
 

@@ -10,5 +10,6 @@ class TrainOptions(BaseOptions):
         parser.add_argument('--RMSprop_decay', type=float, default=0.0, help='RMSprop optimizer decay parameter')
         parser.add_argument('--max_epochs', type=int, default=20, help='number of epochs to train')
         parser.add_argument('--checkpoints_dir', type=str, default='checkpoints', help='directory to save models')
+        parser.add_argument('--save_epoch_freq', type=int, default=1, help='frequency of saving models')
 
         return parser

@@ -1,9 +1,9 @@
 from torch import nn
-from torch.nn.utils.rnn import pad_packed_sequence
 import torch
 import torch.utils.data
 from .attention_layer import AttentionLayer
 from .co_attention_layer import CoAttentionLayer
+from sklearn.metrics import f1_score, recall_score, precision_score, roc_auc_score, accuracy_score
 from tqdm import tqdm
 import numpy as np
 import itertools
@@ -11,14 +11,33 @@ from .sentencizer import Sentencizer
 from .tokenizer import Tokenizer
 
 class Defend(nn.Module):
+    """
+    PyTorch implementation of the dEFEND model.
+    Original paper can be found at: https://dl.acm.org/doi/10.1145/3292500.3330935
+    Kai Shu, Limeng Cui, Suhang Wang, Dongwon Lee, and Huan Liu. 2019.
+     DEFEND: Explainable Fake News Detection.
+     In Proceedings of the 25th ACM SIGKDD International Conference on Knowledge Discovery &amp; Data Mining (KDD '19).
+     Association for Computing Machinery, New York, NY, USA, 395–405.
+     https://doi.org/10.1145/3292500.3330935
+    """
 
     def move_to_device(self, net):
+        """
+        Moves the model to the GPU, if available.
+        :param net: The model / network to move
+        :return: The model / network moved to the GPU
+        """
         if len(self.opt.gpu_ids) > 0:
             net = net.to(self.opt.gpu_ids[0])
-            net = nn.parallel.DistributedDataParallel(net, device_ids=self.opt.gpu_ids)
+            net = nn.parallel.DataParallel(net, device_ids=self.opt.gpu_ids)
         return net
 
     def __init__(self, opt):
+        """
+        Constructor for the dEFEND model.
+        Builds the model, initializes the embedding layers, and sets up the optimizer.
+        :param opt: The options for the model
+        """
         super(Defend, self).__init__()
         self.opt = opt
         encoding_dim = 2 * opt.d if opt.bidirectional else opt.d
@@ -26,6 +45,13 @@ class Defend(nn.Module):
         self.embedding_mapping = {"padding": 0}
         self.sentencizer = Sentencizer()
         self.tokenizer = Tokenizer()
+        self.metrics = [
+            f1_score,
+            recall_score,
+            precision_score,
+            roc_auc_score,
+            accuracy_score
+        ]
 
         if opt.embedding_path is not None:
             # Load the GloVe embeddings, if provided
@@ -76,7 +102,10 @@ class Defend(nn.Module):
         self.co_attention = CoAttentionLayer(opt)
 
         # Fully connected layer, to predict if an article is fake or real
-        self.fc = nn.Linear(2 * encoding_dim, 2)
+        self.fc = nn.Sequential(
+            nn.Linear(2 * encoding_dim, 2),
+            nn.Softmax(dim=-1)
+        )
 
         # If GPU is available, move all models to GPU. Otherwise, they will stay on the CPU
         self.article_embedding = self.move_to_device(self.article_embedding)
@@ -93,6 +122,7 @@ class Defend(nn.Module):
                             self.comment_encoder.parameters(), self.co_attention.parameters(), self.fc.parameters()),
             lr=opt.lr, alpha=opt.RMSprop_ro_param, eps=opt.RMSprop_eps, weight_decay=opt.RMSprop_decay
         )
+        self.loss = nn.CrossEntropyLoss()
 
 
 
@@ -157,7 +187,7 @@ class Defend(nn.Module):
         return encoded_texts
 
 
-    def forward(self, comments, articles):
+    def forward(self, comments, articles, return_attention=False):
         """
         Forward pass of the model.
         :param comments: The comments
@@ -184,12 +214,92 @@ class Defend(nn.Module):
             comment_word_embedding = self.comment_encoder(comment)
             article_comments_encodings[i] = comment_word_embedding
 
-
         # Compute the co-attention output
-        co_attention_output = self.co_attention((article_sentence_encodings, article_comments_encodings))
+        if return_attention:
+            co_attention_output, As, Ac = self.co_attention((article_sentence_encodings, article_comments_encodings), return_attention=True)
+            return self.fc(co_attention_output), As, Ac
+        else:
+            co_attention_output = self.co_attention((article_sentence_encodings, article_comments_encodings))
+            # Feed the co-attention to the fully connected layer
+            output = self.fc(co_attention_output)
+            return output
 
-        # Feed the co-attention to the fully connected layer
-        output = self.fc(co_attention_output)
-        output = torch.softmax(output, dim=-1)
 
-        return output
+    def backward(self, y_pred, y_true):
+        """
+        Backward pass of the model.
+        :param y_pred: The predicted labels
+        :param y_true: The true labels
+        :return:
+        """
+        loss = self.loss(y_pred, y_true)
+        self.optimizer.zero_grad()
+        loss.backward()
+        self.optimizer.step()
+        return loss.item()
+
+    def on_epoch_end(self, articles_x_val, comments_x_val, y_val, epoch, loss_val):
+        """
+        Compute the metrics at the end of an epoch, and potentially save the model.
+        :param articles_x_val:
+        :param comments_x_val:
+        :param y_val:
+        :return:
+        """
+        y_pred = self.predict(articles_x_val, comments_x_val, require_index_conversion=False)
+        metrics = {}
+        for metric in self.metrics:
+            metrics[metric.__name__] = metric(y_val, y_pred)
+        metrics['loss'] = loss_val
+
+        if epoch % self.opt.save_epoch_freq == 0:
+            torch.save(self.state_dict(), f'{self.opt.checkpoints_dir}/{self.opt.name}_{epoch}.pt')
+
+        return metrics
+
+    def predict(self, articles, comments, require_index_conversion=True, return_attention=False):
+        if require_index_conversion:
+            articles = self.to_embedding_indexes_articles(articles)
+            comments = self.to_embedding_indexes_comments(comments)
+
+        return self.forward(comments, articles, return_attention=return_attention)
+
+
+
+    def fit(self, articles_x_train, comments_x_train, y_train, articles_x_val, comments_x_val, y_val, n_epochs):
+        """
+        Fit the model to the training data.
+        :param articles_x_train:
+        :param comments_x_train:
+        :param y_train:
+        :param articles_x_val:
+        :param comments_x_val:
+        :param y_val:
+        :param n_epochs:
+        :return:
+        """
+
+        # Convert the articles and comments to indexes
+        articles_x_train = self.to_embedding_indexes_articles(articles_x_train)
+        comments_x_train = self.to_embedding_indexes_comments(comments_x_train)
+        articles_x_val = self.to_embedding_indexes_articles(articles_x_val)
+        comments_x_val = self.to_embedding_indexes_comments(comments_x_val)
+
+        # Convert all data to PyTorch datasets
+        train_dataset = torch.utils.data.TensorDataset(articles_x_train, comments_x_train, torch.tensor(y_train, dtype=torch.float32))
+        val_dataset = torch.utils.data.TensorDataset(articles_x_val, comments_x_val, torch.tensor(y_val, dtype=torch.float32))
+        train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=self.opt.batch_size, shuffle=True, num_workers=self.opt.num_workers)
+        val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=self.opt.batch_size, shuffle=False, num_workers=self.opt.num_workers)
+
+        for epoch in range(n_epochs):
+            print(f"Epoch: {epoch + 1}")
+            for batch in tqdm(train_loader):
+                articles, comments, y = batch
+                y_pred = self.forward(comments, articles)
+                loss = self.backward(y_pred, y)
+                metrics = self.on_epoch_end(articles_x_val, comments_x_val, y_val, epoch, loss)
+                print(f"Epoch: {epoch + 1} - {metrics}")
+
+
+
+
