@@ -348,6 +348,58 @@ class Defend(nn.Module):
 
         return train_loss_vals, metrics_vals
 
+    def predict_explain(self, article, comments, k_sent=3, k_comm=3):
+        """
+        Predict the label of an article, and return the top-k most important sentences and comments.
+        :param article:
+        :param comments:
+        :param k:
+        :return:
+        """
+        pred, As, Ac = self.predict([article], [comments], return_attention=True, require_index_conversion=True)
+        pred = pred.cpu().detach().numpy()
+        pred = np.argmax(pred, axis=-1)
+        As = As.cpu().detach().numpy().reshape(-1)
+        Ac = Ac.cpu().detach().numpy().reshape(-1)
+        article_sentences = self.sentencizer(article)
+        # If the number of sentences or comments is less than k, set k to the number of sentences or comments
+        if k_sent > len(article_sentences):
+            k_sent = len(article_sentences)
+        if k_comm > len(comments):
+            k_comm = len(comments)
+        highest_importance_sentences = []
+        highest_importance_comments = []
+        for i in range(k_sent):
+            sentence_idx = np.argmax(As)
+            # These try-except blocks are used to handle the case where the model is absolutely awful, and gives
+            # padding tokens the highest importance. In this case, we just skip the padding tokens
+            # and take the next most important sentence or comment.
+            # This should only happen in the case of a model that is not trained at all, and if it does happen on a
+            # a trained model, it is a sign to refractor the whole model.
+            try:
+                highest_importance_sentences.append(article_sentences[sentence_idx])
+            except IndexError:
+                while sentence_idx >= len(article_sentences):
+                    As[sentence_idx] = 0
+                    sentence_idx = np.argmax(As)
+                highest_importance_sentences.append(article_sentences[sentence_idx])
+            As[sentence_idx] = 0
+
+        for i in range(k_comm):
+            comment_idx = np.argmax(Ac)
+            try:
+                highest_importance_comments.append(comments[comment_idx])
+            except IndexError:
+                while comment_idx >= len(comments):
+                    Ac[comment_idx] = 0
+                    comment_idx = np.argmax(Ac)
+                highest_importance_comments.append(comments[comment_idx])
+            Ac[comment_idx] = 0
+
+
+
+        return pred, highest_importance_sentences, highest_importance_comments
+
 
 
 

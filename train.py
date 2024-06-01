@@ -27,6 +27,10 @@ if __name__ == '__main__':
     y_val = y_val * 30
 
     defend = Defend(opt)
-    defend.fit(text_example, comments_example, y_train, articles_x_val, comments_x_val, y_val, opt.max_epochs)
+    # defend.fit(text_example, comments_example, y_train, articles_x_val, comments_x_val, y_val, opt.max_epochs)
+    pred, sent, com = defend.predict_explain(text_example[0], comments_example[0])
+    print(pred)
+    print(sent)
+    print(com)
 
 
