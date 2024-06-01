@@ -123,6 +123,15 @@ class Defend(nn.Module):
             lr=opt.lr, alpha=opt.RMSprop_ro_param, eps=opt.RMSprop_eps, weight_decay=opt.RMSprop_decay
         )
         self.loss = nn.CrossEntropyLoss()
+        self.models = [
+            self.article_embedding,
+            self.comment_embedding,
+            self.word_encoder,
+            self.sentence_encoder,
+            self.comment_encoder,
+            self.co_attention,
+            self.fc
+        ]
 
 
 
@@ -238,7 +247,7 @@ class Defend(nn.Module):
         self.optimizer.step()
         return loss.item()
 
-    def on_epoch_end(self, articles_x_val, comments_x_val, y_val, epoch, loss_val):
+    def on_epoch_end(self, val_dataset, epoch):
         """
         Compute the metrics at the end of an epoch, and potentially save the model.
         :param articles_x_val:
@@ -246,13 +255,39 @@ class Defend(nn.Module):
         :param y_val:
         :return:
         """
-        y_pred = self.predict(articles_x_val, comments_x_val, require_index_conversion=False)
+        for model in self.models:
+            model.eval()
+        y_pred_all = []
+        y_true_all = []
+        loss_vals = []
+        print("Validation set")
+        # Go through the validation dataset
+        for batch in tqdm(val_dataset):
+            articles, comments, y = batch
+            y_pred = self.predict(articles, comments, require_index_conversion=False).cpu().detach()
+            loss = self.loss(y_pred, y)
+            loss_vals.append(loss.item())
+            y_pred_all.append(y_pred.numpy())
+            y_true_all.append(y.numpy())
+
+        # Concatenate all predictions and true labels
+        y_pred_all = np.concatenate(y_pred_all)
+        y_true_all = np.concatenate(y_true_all)
+        # Convert from one-hot to integer
+        y_true_all = np.argmax(y_true_all, axis=-1)
+        y_pred_all = np.argmax(y_pred_all, axis=-1)
+
         metrics = {}
         for metric in self.metrics:
-            metrics[metric.__name__] = metric(y_val, y_pred)
-        metrics['loss'] = loss_val
+            metrics[metric.__name__] = metric(y_true_all, y_pred_all)
+        metrics['loss'] = np.mean(loss_vals)
 
+        # Save the model if the epoch is a multiple of the save_epoch_freq
         if epoch % self.opt.save_epoch_freq == 0:
+            # Check if the checkpoints directory exists. If not, create it
+            import os
+            if not os.path.exists(self.opt.checkpoints_dir):
+                os.makedirs(self.opt.checkpoints_dir)
             torch.save(self.state_dict(), f'{self.opt.checkpoints_dir}/{self.opt.name}_{epoch}.pt')
 
         return metrics
@@ -291,14 +326,23 @@ class Defend(nn.Module):
         train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=self.opt.batch_size, shuffle=True, num_workers=self.opt.num_workers)
         val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=self.opt.batch_size, shuffle=False, num_workers=self.opt.num_workers)
 
+        train_loss_vals = []
+        metrics_vals = []
         for epoch in range(n_epochs):
+            for model in self.models:
+                model.train()
             print(f"Epoch: {epoch + 1}")
+            train_loss_epoch = []
             for batch in tqdm(train_loader):
                 articles, comments, y = batch
                 y_pred = self.forward(comments, articles)
                 loss = self.backward(y_pred, y)
-                metrics = self.on_epoch_end(articles_x_val, comments_x_val, y_val, epoch, loss)
-                print(f"Epoch: {epoch + 1} - {metrics}")
+                train_loss_epoch.append(loss)
+            train_loss_vals.append(np.mean(train_loss_epoch))
+            print(f"Epoch: {epoch + 1} - Training loss: {train_loss_vals[-1]}")
+            metrics = self.on_epoch_end(val_loader, epoch)
+            print(f"Epoch: {epoch + 1} - Validation metrics: {metrics}")
+            metrics_vals.append(metrics)
 
 
 
