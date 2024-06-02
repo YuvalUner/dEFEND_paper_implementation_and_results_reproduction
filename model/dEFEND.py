@@ -41,8 +41,8 @@ class Defend(nn.Module):
         super(Defend, self).__init__()
         self.opt = opt
         encoding_dim = 2 * opt.d if opt.bidirectional else opt.d
-        self.embedding_index = {"padding": torch.zeros(opt.embedding_dim)}
-        self.embedding_mapping = {"padding": 0}
+        embedding_index = {"<padding/>": torch.zeros(opt.embedding_dim)}
+        self.embedding_mapping = {"<padding/>": 0}
         self.sentencizer = Sentencizer()
         self.tokenizer = Tokenizer()
         self.metrics = [
@@ -62,12 +62,12 @@ class Defend(nn.Module):
                     word = values[0]
                     coefs = np.asarray(values[1:], dtype='float32')
                     coefs = torch.from_numpy(coefs)
-                    self.embedding_index[word] = coefs
+                    embedding_index[word] = coefs
                     self.embedding_mapping[word] = len(self.embedding_mapping)
             f.close()
-            embedding_matrix = torch.zeros((len(self.embedding_index) + 1, opt.embedding_dim))
+            embedding_matrix = torch.zeros((len(embedding_index), opt.embedding_dim))
             print('Creating embedding matrix')
-            for i, (word, coefs) in tqdm(enumerate(self.embedding_index.items())):
+            for i, (word, coefs) in tqdm(enumerate(embedding_index.items())):
                 embedding_matrix[i] = coefs
             # Different embedding layers for articles and comments, as defined in the original code.
             # Likely due to the fact that articles and comments have different probability distributions,
@@ -151,7 +151,7 @@ class Defend(nn.Module):
             article = article.lower()
             sentenceized_article = self.sentencizer(article)
             tokenized_sentences = self.tokenizer(sentenceized_article)
-            indexed_sentences = [torch.tensor([self.embedding_mapping.get(word, 0) for word in sentence]) for sentence in tokenized_sentences]
+            indexed_sentences = [torch.tensor([self.embedding_mapping.get(word, 0) for word in sentence][:self.opt.max_sentence_len]) for sentence in tokenized_sentences]
 
             # Pad the article to the maximum sentence count
             if len(indexed_sentences) < self.opt.max_sentence_count:
@@ -183,9 +183,10 @@ class Defend(nn.Module):
                 if j >= self.opt.max_comment_count:
                     break
                 # Lowercase the comment, tokenize it, and convert the tokens to indexes
-                comment = comment.lower()
-                tokenized_comment = self.tokenizer(comment)
-                indexed_comment = torch.tensor([self.embedding_mapping.get(word, 0) for word in tokenized_comment])
+                if comment and isinstance(comment, str):
+                    comment = comment.lower()
+                    tokenized_comment = self.tokenizer(comment)
+                    indexed_comment = torch.tensor([self.embedding_mapping.get(word, 0) for word in tokenized_comment][:self.opt.max_comment_len])
 
                 # Pad the comment to the maximum comment length
                 if len(indexed_comment) < self.opt.max_comment_len:
