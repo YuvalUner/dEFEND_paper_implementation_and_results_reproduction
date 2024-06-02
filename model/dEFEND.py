@@ -187,6 +187,8 @@ class Defend(nn.Module):
                     comment = comment.lower()
                     tokenized_comment = self.tokenizer(comment)
                     indexed_comment = torch.tensor([self.embedding_mapping.get(word, 0) for word in tokenized_comment][:self.opt.max_comment_len])
+                else:
+                    indexed_comment = torch.zeros(self.opt.max_comment_len, dtype=torch.int32)
 
                 # Pad the comment to the maximum comment length
                 if len(indexed_comment) < self.opt.max_comment_len:
@@ -401,6 +403,15 @@ class Defend(nn.Module):
 
         return pred, highest_importance_sentences, highest_importance_comments
 
+
+    def load_model(self, path):
+        """
+        Load a model from a file.
+        :param path: The path to the model
+        :return:
+        """
+        self.load_state_dict(torch.load(path))
+        self.eval()
 
 
 
