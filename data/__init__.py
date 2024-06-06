@@ -1,7 +1,10 @@
 import os
+import torch
 
+def load_pytorch_dataset(opt):
+    return torch.load(opt.dataroot + "/dataset.pt")
 
-def load_articles(opt):
+def load_textual_articles(opt):
     dataroot = opt.dataroot
     fake = []
     real = []

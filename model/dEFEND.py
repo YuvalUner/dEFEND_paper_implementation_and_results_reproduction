@@ -306,7 +306,7 @@ class Defend(nn.Module):
 
 
 
-    def fit(self, articles_x_train, comments_x_train, y_train, articles_x_val, comments_x_val, y_val, n_epochs):
+    def fit(self, articles_x_train, comments_x_train, y_train, articles_x_val, comments_x_val, y_val, n_epochs, require_index_conversion=True):
         """
         Fit the model to the training data.
         :param articles_x_train:
@@ -316,14 +316,18 @@ class Defend(nn.Module):
         :param comments_x_val:
         :param y_val:
         :param n_epochs:
+        :param require_index_conversion: True if the input data is text, False if the input data is already converted to indexes.
+        It is highly recommended to perform the conversion to indexes before calling this function if it is expected that
+        the data will be used multiple times, as the conversion is a time-consuming process.
         :return:
         """
 
-        # Convert the articles and comments to indexes
-        articles_x_train = self.to_embedding_indexes_articles(articles_x_train)
-        comments_x_train = self.to_embedding_indexes_comments(comments_x_train)
-        articles_x_val = self.to_embedding_indexes_articles(articles_x_val)
-        comments_x_val = self.to_embedding_indexes_comments(comments_x_val)
+        if require_index_conversion:
+            # Convert the articles and comments to indexes
+            articles_x_train = self.to_embedding_indexes_articles(articles_x_train)
+            comments_x_train = self.to_embedding_indexes_comments(comments_x_train)
+            articles_x_val = self.to_embedding_indexes_articles(articles_x_val)
+            comments_x_val = self.to_embedding_indexes_comments(comments_x_val)
 
         # Convert all data to PyTorch datasets
         train_dataset = torch.utils.data.TensorDataset(articles_x_train, comments_x_train, torch.tensor(y_train, dtype=torch.float32))
