@@ -14,7 +14,6 @@ class DefendNoComments(Defend):
     def forward(self, comments, articles, return_attention=False):
 
         articles = self.article_embedding(articles)
-        comments = torch.eye(articles.size(1)).to(articles.device).index_select(0, comments)
 
         article_sentence_encodings = torch.zeros((articles.shape[0], self.opt.max_sentence_count,
                                                   2 * self.opt.d if self.opt.bidirectional else self.opt.d))
@@ -24,15 +23,16 @@ class DefendNoComments(Defend):
             article_sentence_embedding, _ = self.sentence_encoder(article_word_embedding)
             article_sentence_encodings[i] = article_sentence_embedding
 
-        article_comments_encodings = torch.zeros((comments.shape[0], self.opt.max_comment_count,
-                                                  2 * self.opt.d if self.opt.bidirectional else self.opt.d))
-
+        # Create a tensor of shape (batch_size, max_comment_count, embedding_dim), that would not affect the output
+        comments = torch.eye(self.opt.max_comment_count, self.opt.d * 2 if self.opt.bidirectional else self.opt.d)
+        comments = comments.unsqueeze(0).repeat(articles.shape[0], 1, 1)
+        comments = comments.to(article_sentence_encodings.device)
 
         if return_attention:
-            co_attention_output, As, Ac = self.co_attention((article_sentence_encodings, article_comments_encodings), return_attention=True)
+            co_attention_output, As, Ac = self.co_attention((article_sentence_encodings, comments), return_attention=True)
             return self.fc(co_attention_output), As, Ac
         else:
-            co_attention_output = self.co_attention((article_sentence_encodings, article_comments_encodings))
+            co_attention_output = self.co_attention((article_sentence_encodings, comments))
             # Feed the co-attention to the fully connected layer
             output = self.fc(co_attention_output)
             return output

@@ -26,8 +26,8 @@ class CoAttentionLayer(nn.Module):
         return mask
 
     def forward(self, x, return_attention=False):
-        comment_rep = x[0]
-        sentence_rep = x[1]
+        sentence_rep = x[0]
+        comment_rep = x[1]
 
         comment_rep_transpose = comment_rep.transpose(-2, -1)
         sentence_rep_transpose = sentence_rep.transpose(-2, -1)

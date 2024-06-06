@@ -39,6 +39,7 @@ class Defend(nn.Module):
         :param opt: The options for the model
         """
         super(Defend, self).__init__()
+        print(f"Model: {self.__class__.__name__}")
         self.opt = opt
         encoding_dim = 2 * opt.d if opt.bidirectional else opt.d
         embedding_index = {"<padding/>": torch.zeros(opt.embedding_dim)}
@@ -288,12 +289,12 @@ class Defend(nn.Module):
         metrics['loss'] = np.mean(loss_vals)
 
         # Save the model if the epoch is a multiple of the save_epoch_freq
-        if epoch % self.opt.save_epoch_freq == 0:
+        if (epoch + 1) % self.opt.save_epoch_freq == 0:
             # Check if the checkpoints directory exists. If not, create it
             import os
-            if not os.path.exists(self.opt.checkpoints_dir):
-                os.makedirs(self.opt.checkpoints_dir)
-            torch.save(self.state_dict(), f'{self.opt.checkpoints_dir}/{self.opt.name}_{epoch}.pt')
+            if not os.path.exists(self.opt.checkpoints_dir + "/" + self.opt.name):
+                os.makedirs(self.opt.checkpoints_dir + "/" + self.opt.name)
+            torch.save(self.state_dict(), f'{self.opt.checkpoints_dir}/{self.opt.name}/{self.opt.name}_{epoch + 1}.pt')
 
         return metrics
 

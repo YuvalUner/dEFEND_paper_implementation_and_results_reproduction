@@ -27,9 +27,5 @@ if __name__ == '__main__':
     else:
         defend = DefendNoComments(opt)
     defend.fit(x_train, train_comments, y_train, x_val, val_comments, y_val, opt.max_epochs, require_index_conversion=False)
-    pred, sent, com = defend.predict_explain(x_val[1], [[]])
-    print(pred)
-    print(sent)
-    print(com)
 
 
