@@ -136,7 +136,7 @@ class Defend(nn.Module):
 
 
 
-    def to_embedding_indexes_articles(self, articles):
+    def to_embedding_indexes_articles(self, articles) -> torch.Tensor:
         """
         Converts the articles to indexes.
         The main differences between this function and the matching comment function are the usage of
@@ -168,7 +168,7 @@ class Defend(nn.Module):
 
         return encoded_texts
 
-    def to_embedding_indexes_comments(self, comments):
+    def to_embedding_indexes_comments(self, comments) -> torch.Tensor:
         """
         Converts the comments to indexes.
         The main differences between this function and the matching article function are the usage of

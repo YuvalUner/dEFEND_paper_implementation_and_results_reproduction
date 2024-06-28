@@ -4,7 +4,7 @@ class TrainOptions(BaseOptions):
 
     def initialize(self, parser):
         parser = BaseOptions.initialize(self, parser)
-        parser.add_argument('--lr', type=float, default=0.01, help='learning rate')
+        parser.add_argument('--lr', type=float, default=0.001, help='learning rate')
         parser.add_argument('--RMSprop_ro_param', type=float, default=0.9, help='RMSprop optimizer rho parameter')
         parser.add_argument('--RMSprop_eps', type=float, default=1e-08, help='RMSprop optimizer epsilon parameter')
         parser.add_argument('--RMSprop_decay', type=float, default=0.0, help='RMSprop optimizer decay parameter')

@@ -34,6 +34,7 @@ class BaseOptions:
         parser.add_argument('--gpu_ids', type=str, default='0', help='gpu ids: e.g. 0  0,1,2, 0,2. use -1 for CPU')
         parser.add_argument('--bidirectional', type=str2bool, default=True, help='use bidirectional GRU')
         parser.add_argument('--use_comments', type=str2bool, default=True, help='use comments as input. If False, only article text will be used')
+        parser.add_argument('--dataset_name', type=str, default='politifact', help='name of the dataset')
         self.initialized = True
 
         return parser
