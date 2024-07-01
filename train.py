@@ -1,7 +1,7 @@
 from options import TrainOptions
 from model import Defend, DefendNoComments
 import torch
-from data import load_pytorch_dataset, load_articles_with_comments
+from data import load_pytorch_dataset
 from sklearn.model_selection import train_test_split
 
 if __name__ == '__main__':
