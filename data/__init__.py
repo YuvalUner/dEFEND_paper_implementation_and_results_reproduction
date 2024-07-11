@@ -3,7 +3,7 @@ import torch
 import pandas as pd
 
 def load_pytorch_dataset(opt):
-    return torch.load(opt.dataroot + "/dataset.pt")
+    return torch.load(f"{opt.dataroot}/{opt.dataset_name}.pt")
 
 def load_textual_articles(opt):
     dataroot = opt.dataroot

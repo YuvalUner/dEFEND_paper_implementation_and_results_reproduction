@@ -31,10 +31,11 @@ class BaseOptions:
         parser.add_argument('--d', type=int, default=100, help='dimension of hidden layers and embeddings')
         parser.add_argument('--k', type=int, default=80, help='dimension of the attention layer')
         parser.add_argument('--name', type=str, default='model', help='name of the model')
-        parser.add_argument('--gpu_ids', type=str, default='0', help='gpu ids: e.g. 0  0,1,2, 0,2. use -1 for CPU')
+        parser.add_argument('--gpu_ids', type=str, default='-1', help='gpu ids: e.g. 0  0,1,2, 0,2. use -1 for CPU')
         parser.add_argument('--bidirectional', type=str2bool, default=True, help='use bidirectional GRU')
         parser.add_argument('--use_comments', type=str2bool, default=True, help='use comments as input. If False, only article text will be used')
-        parser.add_argument('--dataset_name', type=str, default='politifact', help='name of the dataset')
+        parser.add_argument('--dataset_name', type=str, required=True, help='name of the dataset')
+        parser.add_argument('--require_preprocessing', type=str2bool, default=True, help='whether the dataset requires preprocessing')
         self.initialized = True
 
         return parser
